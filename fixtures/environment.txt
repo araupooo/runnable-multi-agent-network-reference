@@ -1,0 +1,10 @@
+environment:
+2026-11-11T01:15:08Z
+Python 3.12.3
+Linux htch-runtime 7.0.0-44-generic #1 SMP PREEMPT_DYNAMIC Fri Nov  6 01:23:31 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+cpu: 4 vCPU
+model name	: Intel(R) Xeon(R) Platinum 8321HC CPU @ 1.40GHz
+MemTotal:        8125912 kB
+python: 3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]
+dependencies: Python 3 standard library only (hashlib, json, socket, socketserver, threading, csv, statistics)
+no third-party packages, no network access during build/run
