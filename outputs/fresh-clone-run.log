@@ -1,0 +1,74 @@
+clean_reproduce: workdir=/tmp/mesh-ref-repro
+clean_reproduce: source pack=/home/hatch/workspace/goals/postfiat-task-node-connection/hidden_files/task-2713c22a/pack
+clean_reproduce: python=Python 3.12.3
+--- fresh-clone test suite (full) ---
+run_tests: 2026-11-11T01:26:29Z
+Python 3.12.3
+--- ed25519 vectors (RFC 8032 section 7.1) ---
+TEST 1: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=0
+TEST 2: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=1
+TEST 3: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=2
+TEST 1024: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=1023
+TEST SHA(abc): keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=64
+random-keypair roundtrip: PASS
+RESULT: PASS vectors=5 failures=0
+vectors exit=0
+--- mesh integration tests ---
+T1 normal-cooperation t1-a n=1000: PASS total=333833500 verified=True
+T1 normal-cooperation t1-b n=1: PASS total=1 verified=True
+T1 normal-cooperation t1-c n=137: PASS total=866525 verified=True
+T5 replay-rejected: PASS first_accepted=True second={'error': 'stale_seq', 'detail': 'sender=planner seq=999001 duplicate'}
+T2 tampered-message-rejected: PASS reply={'error': 'bad_signature', 'detail': 'sender=planner type=task.assign'}
+T3 unknown-key-rejected: PASS reply={'error': 'unknown_sender', 'detail': "'attacker'"}
+T4 identity-spoofing-rejected: PASS reply={'error': 'bad_signature', 'detail': 'sender=worker type=task.assign.reply'}
+T6 wrong-recipient-rejected: PASS reply={'error': 'wrong_recipient', 'detail': 'to=worker expected=auditor'}
+T7 unauthorised-sender-rejected: PASS reply={'error': 'unauthorised_sender', 'detail': 'auditor may not send task.assign'}
+T8 unknown-agent-rejected: PASS reply={'error': 'unknown_sender', 'detail': "'mallory'"}
+T9 malformed-frame-rejected: PASS reply={'error': 'malformed', 'detail': 'Expecting value: line 1 column 1 (char 0)'}
+stats planner: sent=12 received=12 rejected=1
+stats worker: sent=7 received=7 rejected=6
+stats auditor: sent=3 received=3 rejected=1
+stats client: sent=3 received=3
+T10 rejection-count: PASS total_rejected=8 expected=8
+RESULT: PASS integration failures=0
+mesh exit=0
+run_tests: PASS (see outputs/integration-tests.log)
+fresh tests exit=0
+--- fresh-clone benchmarks (full) ---
+run_benchmarks: label=repro 2026-11-11T01:26:31Z
+Python 3.12.3
+bench: starting mesh (planner/worker/auditor on 127.0.0.1)
+crypto sign: n=200 176.4 ops/s mean=5670 us/op
+crypto verify: n=200 76.4 ops/s mean=13092 us/op verified=200/200
+latency: n=200 mean=164.99 ms p50=158.60 ms p95=199.21 ms p99=242.37 ms min=147.27 ms max=295.97 ms failures=0
+throughput: concurrency=1 jobs=30 elapsed=4.83 s jobs_per_s=6.21 mean_latency=160.69 ms failures=0
+throughput: concurrency=5 jobs=150 elapsed=25.15 s jobs_per_s=5.96 mean_latency=824.43 ms failures=0
+throughput: concurrency=10 jobs=300 elapsed=49.22 s jobs_per_s=6.09 mean_latency=1617.63 ms failures=0
+bench: latency.csv and throughput.csv written to outputs/bench-repro
+RESULT: PASS benchmarks crypto_sign_us=5670 crypto_verify_us=13092 latency_p50_ms=158.60 latency_p95_ms=199.21 throughput_1c=6.21 throughput_10c=6.09
+bench exit=0
+run_benchmarks: PASS (see outputs/benchmarks-repro.log)
+fresh benchmarks exit=0
+=== headline comparison (fresh clone vs shipped) ===
+--- ed25519 vectors ---
+fresh:   RESULT: PASS vectors=5 failures=0
+shipped: RESULT: PASS vectors=5 failures=0
+--- mesh integration ---
+fresh:   RESULT: PASS integration failures=0
+shipped: RESULT: PASS integration failures=0
+--- latency ---
+fresh:   latency: n=200 mean=164.99 ms p50=158.60 ms p95=199.21 ms p99=242.37 ms min=147.27 ms max=295.97 ms failures=0
+shipped: latency: n=200 mean=158.63 ms p50=151.46 ms p95=190.96 ms p99=220.46 ms min=145.97 ms max=236.86 ms failures=0
+--- throughput ---
+fresh:
+throughput: concurrency=1 jobs=30 elapsed=4.83 s jobs_per_s=6.21 mean_latency=160.69 ms failures=0
+throughput: concurrency=5 jobs=150 elapsed=25.15 s jobs_per_s=5.96 mean_latency=824.43 ms failures=0
+throughput: concurrency=10 jobs=300 elapsed=49.22 s jobs_per_s=6.09 mean_latency=1617.63 ms failures=0
+shipped:
+throughput: concurrency=1 jobs=30 elapsed=4.76 s jobs_per_s=6.30 mean_latency=158.40 ms failures=0
+throughput: concurrency=5 jobs=150 elapsed=24.16 s jobs_per_s=6.21 mean_latency=794.93 ms failures=0
+throughput: concurrency=10 jobs=300 elapsed=49.07 s jobs_per_s=6.11 mean_latency=1616.88 ms failures=0
+--- crypto ---
+fresh:   crypto sign: n=200 176.4 ops/s mean=5670 us/op
+shipped: crypto sign: n=200 163.9 ops/s mean=6100 us/op
+clean_reproduce.sh DONE (workdir kept at /tmp/mesh-ref-repro)

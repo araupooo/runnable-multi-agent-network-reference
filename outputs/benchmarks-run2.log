@@ -1,0 +1,12 @@
+run_benchmarks: label=run2 2026-11-11T01:21:18Z
+Python 3.12.3
+bench: starting mesh (planner/worker/auditor on 127.0.0.1)
+crypto sign: n=200 172.8 ops/s mean=5786 us/op
+crypto verify: n=200 80.5 ops/s mean=12419 us/op verified=200/200
+latency: n=200 mean=155.46 ms p50=150.93 ms p95=179.27 ms p99=212.05 ms min=144.13 ms max=222.16 ms failures=0
+throughput: concurrency=1 jobs=30 elapsed=4.80 s jobs_per_s=6.26 mean_latency=159.46 ms failures=0
+throughput: concurrency=5 jobs=150 elapsed=24.18 s jobs_per_s=6.20 mean_latency=797.57 ms failures=0
+throughput: concurrency=10 jobs=300 elapsed=48.98 s jobs_per_s=6.13 mean_latency=1608.57 ms failures=0
+bench: latency.csv and throughput.csv written to outputs/bench-run2
+RESULT: PASS benchmarks crypto_sign_us=5786 crypto_verify_us=12419 latency_p50_ms=150.93 latency_p95_ms=179.27 throughput_1c=6.26 throughput_10c=6.13
+bench exit=0

@@ -1,0 +1,12 @@
+run_benchmarks: label=repro 2026-11-11T01:26:31Z
+Python 3.12.3
+bench: starting mesh (planner/worker/auditor on 127.0.0.1)
+crypto sign: n=200 176.4 ops/s mean=5670 us/op
+crypto verify: n=200 76.4 ops/s mean=13092 us/op verified=200/200
+latency: n=200 mean=164.99 ms p50=158.60 ms p95=199.21 ms p99=242.37 ms min=147.27 ms max=295.97 ms failures=0
+throughput: concurrency=1 jobs=30 elapsed=4.83 s jobs_per_s=6.21 mean_latency=160.69 ms failures=0
+throughput: concurrency=5 jobs=150 elapsed=25.15 s jobs_per_s=5.96 mean_latency=824.43 ms failures=0
+throughput: concurrency=10 jobs=300 elapsed=49.22 s jobs_per_s=6.09 mean_latency=1617.63 ms failures=0
+bench: latency.csv and throughput.csv written to outputs/bench-repro
+RESULT: PASS benchmarks crypto_sign_us=5670 crypto_verify_us=13092 latency_p50_ms=158.60 latency_p95_ms=199.21 throughput_1c=6.21 throughput_10c=6.09
+bench exit=0

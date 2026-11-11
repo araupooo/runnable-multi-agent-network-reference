@@ -1,0 +1,30 @@
+run_tests: 2026-11-11T01:24:30Z
+Python 3.12.3
+--- ed25519 vectors (RFC 8032 section 7.1) ---
+TEST 1: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=0
+TEST 2: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=1
+TEST 3: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=2
+TEST 1024: keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=1023
+TEST SHA(abc): keygen=PASS sign=PASS verify=PASS tampered-sig-rejected=PASS msg_len=64
+random-keypair roundtrip: PASS
+RESULT: PASS vectors=5 failures=0
+vectors exit=0
+--- mesh integration tests ---
+T1 normal-cooperation t1-a n=1000: PASS total=333833500 verified=True
+T1 normal-cooperation t1-b n=1: PASS total=1 verified=True
+T1 normal-cooperation t1-c n=137: PASS total=866525 verified=True
+T5 replay-rejected: PASS first_accepted=True second={'error': 'stale_seq', 'detail': 'sender=planner seq=999001 duplicate'}
+T2 tampered-message-rejected: PASS reply={'error': 'bad_signature', 'detail': 'sender=planner type=task.assign'}
+T3 unknown-key-rejected: PASS reply={'error': 'unknown_sender', 'detail': "'attacker'"}
+T4 identity-spoofing-rejected: PASS reply={'error': 'bad_signature', 'detail': 'sender=worker type=task.assign.reply'}
+T6 wrong-recipient-rejected: PASS reply={'error': 'wrong_recipient', 'detail': 'to=worker expected=auditor'}
+T7 unauthorised-sender-rejected: PASS reply={'error': 'unauthorised_sender', 'detail': 'auditor may not send task.assign'}
+T8 unknown-agent-rejected: PASS reply={'error': 'unknown_sender', 'detail': "'mallory'"}
+T9 malformed-frame-rejected: PASS reply={'error': 'malformed', 'detail': 'Expecting value: line 1 column 1 (char 0)'}
+stats planner: sent=12 received=12 rejected=1
+stats worker: sent=7 received=7 rejected=6
+stats auditor: sent=3 received=3 rejected=1
+stats client: sent=3 received=3
+T10 rejection-count: PASS total_rejected=8 expected=8
+RESULT: PASS integration failures=0
+mesh exit=0
