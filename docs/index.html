@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Runnable Multi-Agent Network Reference — Findings</title>
+<style>
+body { font-family: sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1em; color: #111; }
+h1 { font-size: 1.6em; } h2 { font-size: 1.25em; margin-top: 1.5em; }
+table { border-collapse: collapse; margin: 0.5em 0; }
+th, td { border: 1px solid #999; padding: 4px 10px; text-align: left; }
+th { background: #eef4ff; }
+code { background: #f2f2f2; padding: 0 3px; }
+img { max-width: 100%; }
+</style>
+</head>
+<body>
+<h1>Runnable Multi-Agent Network Reference — Findings</h1>
+<p>Three cooperating agents (planner, worker, auditor) plus a client,
+communicating over authenticated localhost TCP channels. Every message
+is a signed JSON envelope (Ed25519, RFC 8032). Pinned environment:
+Python 3.12.3, standard library only, no third-party packages.
+Methodology: <a href="methodology.md">docs/methodology.md</a>.
+Claims → evidence: <a href="evidence-index.md">docs/evidence-index.md</a>.
+All numbers are from the unedited logs in <code>outputs/</code>.</p>
+
+<h2>Headline result</h2>
+<p>PASS — the mesh works end-to-end and rejects every tested attack.
+Ed25519 validated against all five RFC 8032 §7.1 test vectors;
+integration tests T1–T10 pass with 0 failures; 8 attack deliveries
+rejected, 0 legitimate messages rejected. Benchmarks repeated twice
+(run1, run2) with close agreement, and re-run a third time from a
+fresh copy (<code>outputs/fresh-clone-*.log</code>).</p>
+
+<h2>Topology</h2>
+<p><img src="topology.svg" alt="Topology: client, planner, worker, auditor inside the localhost trust boundary"></p>
+
+<h2>Table 1 — Ed25519 validation (RFC 8032 §7.1 test vectors)</h2>
+<table>
+<tr><th>Vector</th><th>Key generation</th><th>Sign</th><th>Verify</th><th>Tampered signature rejected</th></tr>
+<tr><td>TEST 1 (empty message)</td><td>PASS</td><td>PASS</td><td>PASS</td><td>PASS</td></tr>
+<tr><td>TEST 2 (1 byte)</td><td>PASS</td><td>PASS</td><td>PASS</td><td>PASS</td></tr>
+<tr><td>TEST 3 (2 bytes)</td><td>PASS</td><td>PASS</td><td>PASS</td><td>PASS</td></tr>
+<tr><td>TEST 1024 (1023 bytes)</td><td>PASS</td><td>PASS</td><td>PASS</td><td>PASS</td></tr>
+<tr><td>TEST SHA(abc) (64 bytes)</td><td>PASS</td><td>PASS</td><td>PASS</td><td>PASS</td></tr>
+<tr><td>Random keypair round-trip</td><td>PASS</td><td>PASS</td><td>PASS</td><td>—</td></tr>
+</table>
+<p>Log: <code>outputs/integration-tests.log</code>.</p>
+
+<h2>Table 2 — Integration tests (live agents, real TCP)</h2>
+<table>
+<tr><th>Test</th><th>Attack / case</th><th>Expected</th><th>Result</th></tr>
+<tr><td>T1</td><td>Normal cooperation, 3 jobs (n=1000, 1, 137)</td><td>Correct verified totals</td><td>PASS</td></tr>
+<tr><td>T2</td><td>Tampered payload (signature no longer matches)</td><td>Rejected <code>bad_signature</code></td><td>PASS</td></tr>
+<tr><td>T3</td><td>Unknown key (attacker keypair not in registry)</td><td>Rejected <code>unknown_sender</code></td><td>PASS</td></tr>
+<tr><td>T4</td><td>Identity spoofing (claims worker, signed with auditor key)</td><td>Rejected <code>bad_signature</code></td><td>PASS</td></tr>
+<tr><td>T5</td><td>Replay of a valid envelope</td><td>Rejected <code>stale_seq</code></td><td>PASS</td></tr>
+<tr><td>T6</td><td>Message delivered to the wrong agent</td><td>Rejected <code>wrong_recipient</code></td><td>PASS</td></tr>
+<tr><td>T7</td><td>Registered agent sending a type it may not send</td><td>Rejected <code>unauthorised_sender</code></td><td>PASS</td></tr>
+<tr><td>T8</td><td>Unknown agent name (<code>mallory</code>)</td><td>Rejected <code>unknown_sender</code></td><td>PASS</td></tr>
+<tr><td>T9</td><td>Malformed (non-JSON) frame</td><td>Rejected <code>malformed</code></td><td>PASS</td></tr>
+<tr><td>T10</td><td>Rejection accounting</td><td>Exactly 8 rejections, 0 legitimate rejected</td><td>PASS</td></tr>
+</table>
+<p>Log: <code>outputs/integration-tests.log</code>.</p>
+
+<h2>Table 3 — Crypto micro-benchmark (200 ops each, 40-byte message)</h2>
+<table>
+<tr><th>Operation</th><th>Run1</th><th>Run2</th></tr>
+<tr><td>Ed25519 sign</td><td>163.9 ops/s, mean 6,100 µs/op</td><td>172.8 ops/s, mean 5,786 µs/op</td></tr>
+<tr><td>Ed25519 verify</td><td>80.2 ops/s, mean 12,471 µs/op</td><td>80.5 ops/s, mean 12,419 µs/op</td></tr>
+</table>
+<p>A job uses 8 signatures and 8 verifications, so the crypto floor
+for one job is about 8 × 6 ms + 8 × 12.5 ms ≈ 148 ms — matching the
+measured end-to-end p50 of ~151 ms. The reference is CPU-bound in
+pure-Python Ed25519, not in the network (localhost round-trips are
+sub-millisecond).</p>
+
+<h2>Table 4 — End-to-end job latency (n=200 sequential jobs, n=1000)</h2>
+<table>
+<tr><th></th><th>Run1</th><th>Run2</th></tr>
+<tr><td>Mean</td><td>158.63 ms</td><td>155.46 ms</td></tr>
+<tr><td>p50</td><td>151.46 ms</td><td>150.93 ms</td></tr>
+<tr><td>p95</td><td>190.96 ms</td><td>179.27 ms</td></tr>
+<tr><td>p99</td><td>220.46 ms</td><td>212.05 ms</td></tr>
+<tr><td>Min / max</td><td>145.97 / 236.86 ms</td><td>144.13 / 222.16 ms</td></tr>
+<tr><td>Failures</td><td>0</td><td>0</td></tr>
+</table>
+<p>Raw data: <code>outputs/latency.csv</code> (run1),
+<code>outputs/bench-run2/latency.csv</code> (run2).</p>
+
+<h2>Table 5 — Throughput (jobs/s, 30 jobs per client thread)</h2>
+<table>
+<tr><th>Concurrent clients</th><th>Run1 jobs/s</th><th>Run1 mean latency</th><th>Run2 jobs/s</th><th>Run2 mean latency</th><th>Failures</th></tr>
+<tr><td>1</td><td>6.30</td><td>158.40 ms</td><td>6.26</td><td>159.46 ms</td><td>0</td></tr>
+<tr><td>5</td><td>6.21</td><td>794.93 ms</td><td>6.20</td><td>797.57 ms</td><td>0</td></tr>
+<tr><td>10</td><td>6.11</td><td>1616.88 ms</td><td>6.13</td><td>1608.57 ms</td><td>0</td></tr>
+</table>
+<p>Throughput is flat (~6.1–6.3 jobs/s) as concurrency rises: the
+Python GIL serialises the pure-Python cryptography, so extra clients
+only add queueing (mean latency grows 158 ms → 1,617 ms). This is a
+property of the reference implementation, not of the protocol: a
+production implementation with a native Ed25519 library would scale
+with CPU cores. Raw data: <code>outputs/throughput.csv</code>.</p>
+
+<h2>Table 6 — Fresh-clone verification</h2>
+<p><code>scripts/clean_reproduce.sh</code> copies the pack to a fresh
+directory, re-runs the FULL test suite and the FULL benchmark suite
+there, and copies the fresh logs into <code>outputs/</code>. See
+<code>outputs/fresh-clone-run.log</code> for the comparison output,
+<code>outputs/fresh-clone-tests.log</code> and
+<code>outputs/fresh-clone-benchmarks.log</code> for the fresh logs.</p>
+<table>
+<tr><th>Check</th><th>Fresh clone</th><th>Shipped (run1)</th><th>Agreement</th></tr>
+<tr><td>Ed25519 vectors</td><td>5/5 PASS</td><td>5/5 PASS</td><td>Identical</td></tr>
+<tr><td>Integration tests</td><td>0 failures</td><td>0 failures</td><td>Identical</td></tr>
+<tr><td>Latency p50</td><td>158.60 ms</td><td>151.46 ms</td><td>+4.7%</td></tr>
+<tr><td>Latency p95</td><td>199.21 ms</td><td>190.96 ms</td><td>+4.3%</td></tr>
+<tr><td>Throughput (1 client)</td><td>6.21 jobs/s</td><td>6.30 jobs/s</td><td>−1.4%</td></tr>
+<tr><td>Throughput (10 clients)</td><td>6.09 jobs/s</td><td>6.11 jobs/s</td><td>−0.3%</td></tr>
+<tr><td>Crypto sign / verify</td><td>5,670 / 13,092 µs</td><td>6,100 / 12,471 µs</td><td>−7.0% / +5.0%</td></tr>
+</table>
+<p>All fresh-clone numbers agree with the shipped run1 numbers within
+7%; test outcomes are identical. The fresh-clone run is a third
+independent measurement (run1, run2, fresh clone) of the same code.</p>
+
+<h2>Findings (severity-rated)</h2>
+<table>
+<tr><th>ID</th><th>Severity</th><th>Finding</th><th>Mitigation / status</th></tr>
+<tr><td>F1</td><td>Low</td><td>Transport is plaintext localhost TCP — messages are authenticated but not encrypted; a local observer can read contents.</td><td>Accepted for this reference (127.0.0.1 only). Production: add TLS.</td></tr>
+<tr><td>F2</td><td>Low</td><td>Pure-Python Ed25519 is not constant-time; timing side channels possible in principle.</td><td>Accepted for this reference. Production: vetted native library.</td></tr>
+<tr><td>F3</td><td>Informational</td><td>Replay window of 128 + seen-set: replays inside the window are caught by the seen-set, below it by the age check.</td><td>Mitigated. Residual: a replay of an undelivered original inside the window is indistinguishable from first delivery.</td></tr>
+<tr><td>F4</td><td>Low</td><td>No key rotation or forward secrecy; a stolen private key impersonates the agent until restart.</td><td>Accepted: keys are fresh per process and never written to disk.</td></tr>
+<tr><td>F5</td><td>Informational</td><td>Sequence state resets on restart, so pre-restart captures could be replayed after it.</td><td>Accepted and disclosed. Production: persist sequence state or rotate keys on restart.</td></tr>
+<tr><td>F6</td><td>Informational</td><td>No rate limiting; only the 1 MiB frame cap and 10 s socket timeout bound abuse.</td><td>Accepted for this reference (localhost, trusted peers).</td></tr>
+<tr><td>F7</td><td>Low</td><td>A strictly-increasing sequence check rejected legitimate out-of-order messages under concurrency (found by benchmarks: 80/150 failures at 5 clients, 219/300 at 10, all <code>stale_seq</code>).</td><td>Fixed: sliding window of 128 + seen-set; all levels now 0 failures.</td></tr>
+<tr><td>F8</td><td>Informational</td><td>The registry is a shared in-process dictionary; any code calling <code>Mesh.add_client</code> can register an identity.</td><td>Accepted for this reference. Production: signed key directory.</td></tr>
+</table>
+<p>Full threat model: <a href="threat-model.md">docs/threat-model.md</a>.</p>
+
+<h2>Limitations</h2>
+<ul>
+<li><b>L1 — Single process:</b> agents run as threads in one process
+with a shared registry object. Production deployment would run each
+agent as its own process/host with the same protocol; that deployment
+was not tested.</li>
+<li><b>L2 — No TLS:</b> messages are authenticated, not encrypted
+(F1). Localhost only.</li>
+<li><b>L3 — Reference crypto:</b> pure-Python Ed25519 is slow
+(~6 ms sign, ~12.5 ms verify) and not constant-time (F2). Latency and
+throughput numbers describe this reference, not the protocol's limits.</li>
+<li><b>L4 — Shared VM noise:</b> benchmarks ran on a shared virtual
+machine; background load inflates latency outliers (max 236.86 ms vs
+p50 151.46 ms). Percentiles are the robust comparison; maxima are not.</li>
+<li><b>L5 — Restart scope:</b> sequence state is in-memory only (F5);
+cross-restart replay was not tested.</li>
+<li><b>L6 — Auditor trust:</b> job correctness depends on the auditor
+being honest: a malicious auditor could falsely claim
+<code>verified=true</code>. The audit step catches a malicious worker,
+not a malicious auditor.</li>
+</ul>
+
+<h2>Primary sources</h2>
+<ul>
+<li>RFC 8032, <i>Edwards-Curve Digital Signature Algorithm (EdDSA)</i> — Ed25519 algorithm and §7.1 test vectors.</li>
+<li>RFC 8785, <i>JSON Canonicalization Scheme (JCS)</i> — canonical JSON for signed envelopes (restricted-data-model subset).</li>
+<li>RFC 8259, <i>The JavaScript Object Notation (JSON) Data Interchange Format</i> — JSON data model.</li>
+<li>Python 3.12.3 standard library documentation — all runtime behaviour.</li>
+</ul>
+<p>Reproduce: <code>scripts/run_tests.sh</code>,
+<code>scripts/run_benchmarks.sh run1</code>,
+<code>scripts/clean_reproduce.sh</code>,
+<code>scripts/verify_digests.sh</code>. Run manifest:
+<code>outputs/run-manifest.md</code>.</p>
+</body>
+</html>
